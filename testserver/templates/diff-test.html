@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Diff Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; max-width: 800px; }
+        .section { border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+        button { margin: 5px; padding: 8px 15px; cursor: pointer; }
+        .unchanged { background: #f0f0f0; }
+        .modified { background: #fff3cd; }
+    </style>
+</head>
+<body>
+    <h1>Unified Diff Test</h1>
+    <p>Click buttons to modify page content via JavaScript (same URL, diff mode).</p>
+
+    <div class="section unchanged">
+        <h2>Section 1: Unchanged Header</h2>
+        <p>This section stays the same.</p>
+        <p>It provides context in the diff.</p>
+    </div>
+
+    <div class="section unchanged" id="section2">
+        <h2>Section 2: Modifiable Content</h2>
+        <p>Initial content in section 2.</p>
+        <p>This can be modified by clicking buttons above.</p>
+    </div>
+
+    <div class="section unchanged">
+        <h2>Section 3: Another Unchanged Section</h2>
+        <p>This also stays the same.</p>
+        <p>More context for the diff.</p>
+    </div>
+
+    <div class="section unchanged" id="section4">
+        <h2>Section 4: Another Modifiable Section</h2>
+        <p>Initial content in section 4.</p>
+        <p>This can also be modified.</p>
+        <ul>
+            <li>Item 1</li>
+            <li>Item 2</li>
+            <li>Item 3</li>
+        </ul>
+    </div>
+
+    <div class="section unchanged">
+        <h2>Section 5: Final Unchanged Section</h2>
+        <p>The last section that doesn't change.</p>
+    </div>
+
+    <hr>
+    <h3>Test Actions (JavaScript - no URL change):</h3>
+    <button onclick="addContent()">Add Content to Section 2</button>
+    <button onclick="removeContent()">Remove Content from Section 4</button>
+    <button onclick="modifyBoth()">Modify Both Sections</button>
+    <button onclick="reset()">Reset</button>
+
+    <p><a href="/">Back to Home</a></p>
+
+    <script>
+        function addContent() {
+            const section2 = document.getElementById('section2');
+            section2.className = 'section modified';
+            section2.innerHTML = '<h2>Section 2: Modifiable Content (ADDED)</h2>' +
+                '<p>Initial content in section 2.</p>' +
+                '<p>This can be modified by clicking buttons above.</p>' +
+                '<p><strong>NEW CONTENT ADDED HERE!</strong></p>' +
+                '<p>This paragraph was just inserted.</p>' +
+                '<ul><li>New list item 1</li><li>New list item 2</li></ul>';
+        }
+
+        function removeContent() {
+            const section4 = document.getElementById('section4');
+            section4.className = 'section modified';
+            section4.innerHTML = '<h2>Section 4: Another Modifiable Section (REMOVED)</h2>' +
+                '<p>Initial content in section 4.</p>';
+        }
+
+        function modifyBoth() {
+            const section2 = document.getElementById('section2');
+            section2.className = 'section modified';
+            section2.innerHTML = '<h2>Section 2: Modifiable Content (MODIFIED)</h2>' +
+                '<p>CHANGED content in section 2.</p>' +
+                '<p>The text has been completely replaced.</p>';
+
+            const section4 = document.getElementById('section4');
+            section4.className = 'section modified';
+            section4.innerHTML = '<h2>Section 4: Another Modifiable Section (MODIFIED)</h2>' +
+                '<p>CHANGED content in section 4.</p>' +
+                '<ul><li>Modified Item A</li><li>Modified Item B</li>' +
+                '<li>New Item C</li><li>New Item D</li></ul>';
+        }
+
+        function reset() {
+            const section2 = document.getElementById('section2');
+            section2.className = 'section unchanged';
+            section2.innerHTML = '<h2>Section 2: Modifiable Content</h2>' +
+                '<p>Initial content in section 2.</p>' +
+                '<p>This can be modified by clicking buttons above.</p>';
+
+            const section4 = document.getElementById('section4');
+            section4.className = 'section unchanged';
+            section4.innerHTML = '<h2>Section 4: Another Modifiable Section</h2>' +
+                '<p>Initial content in section 4.</p>' +
+                '<p>This can also be modified.</p>' +
+                '<ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>';
+        }
+    </script>
+</body>
+</html>

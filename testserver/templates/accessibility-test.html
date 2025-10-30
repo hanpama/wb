@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Accessibility Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; max-width: 800px; }
+        .test-case { border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+        button, a { margin: 5px; }
+
+        /* Give empty interactive elements size so they have boundingBox */
+        .empty-button {
+            width: 40px;
+            height: 40px;
+            display: inline-block;
+            background: #f0f0f0;
+            border: 2px solid #ccc;
+            cursor: pointer;
+        }
+        .empty-link {
+            width: 80px;
+            height: 30px;
+            display: inline-block;
+            background: #e0f0ff;
+            border: 1px solid #0066cc;
+        }
+        .icon-button {
+            padding: 10px;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Accessibility Attributes Test</h1>
+    <p>Testing interactive elements with accessibility attributes but no visible text</p>
+
+    <div class="test-case">
+        <h2>Test 1: Button with aria-label (no text)</h2>
+        <button class="empty-button" aria-label="Close dialog"></button>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 2: Link with title (no text)</h2>
+        <a class="empty-link" href="/home" title="Go to homepage"></a>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 3: Button with both text and aria-label</h2>
+        <button aria-label="This should be ignored">Visible Text</button>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 4: Icon button with aria-label</h2>
+        <button class="icon-button" aria-label="Settings">⚙️</button>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 5: Input with placeholder (no value)</h2>
+        <input type="text" placeholder="Enter your name" />
+    </div>
+
+    <div class="test-case">
+        <h2>Test 6: Link with nested image (has alt)</h2>
+        <a href="/profile">
+            <img src="/image.png" alt="User Profile" width="20" height="20" />
+        </a>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 7: Button with no text, no aria-label (fallback)</h2>
+        <button class="empty-button"></button>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 8: Link with aria-label (should use aria-label)</h2>
+        <a class="empty-link" href="/search" aria-label="Search the site"></a>
+    </div>
+
+    <hr>
+    <p><a href="/">Back to Home</a></p>
+</body>
+</html>

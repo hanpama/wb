@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dialog Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; max-width: 800px; }
+        .test-case { border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+        button { margin: 5px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>JavaScript Dialog Test</h1>
+
+    <div class="test-case">
+        <h2>Test 1: Simple Alert</h2>
+        <p>Displays a simple alert message</p>
+        <button onclick="alert('This is a simple alert message!')">Show Alert</button>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 2: Alert with Long Message</h2>
+        <p>Tests alert with longer message text</p>
+        <button onclick="alert('This is a longer alert message that contains multiple sentences. It should be displayed properly in the dialog interface. Make sure all text is visible.')">Show Long Alert</button>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 3: Confirm Dialog</h2>
+        <p>Shows a confirm dialog and displays the result</p>
+        <button onclick="handleConfirm()">Show Confirm</button>
+        <p id="confirm-result"></p>
+        <script>
+            function handleConfirm() {
+                const result = confirm('Do you want to continue?');
+                document.getElementById('confirm-result').textContent =
+                    'User selected: ' + (result ? 'OK' : 'Cancel');
+            }
+        </script>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 4: Prompt Dialog</h2>
+        <p>Shows a prompt dialog and displays the input</p>
+        <button onclick="handlePrompt()">Show Prompt</button>
+        <p id="prompt-result"></p>
+        <script>
+            function handlePrompt() {
+                const name = prompt('What is your name?');
+                document.getElementById('prompt-result').textContent =
+                    name === null ? 'User cancelled' : 'Hello, ' + name + '!';
+            }
+        </script>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 5: Prompt with Default Value</h2>
+        <p>Shows a prompt with a pre-filled default value</p>
+        <button onclick="handlePromptWithDefault()">Show Prompt with Default</button>
+        <p id="prompt-default-result"></p>
+        <script>
+            function handlePromptWithDefault() {
+                const email = prompt('Enter your email:', 'user@example.com');
+                document.getElementById('prompt-default-result').textContent =
+                    email === null ? 'User cancelled' : 'Email: ' + email;
+            }
+        </script>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 6: Sequential Dialogs</h2>
+        <p>Shows multiple dialogs in sequence</p>
+        <button onclick="handleSequence()">Show Sequence</button>
+        <p id="sequence-result"></p>
+        <script>
+            function handleSequence() {
+                alert('Step 1: This is the first alert');
+                const proceed = confirm('Step 2: Do you want to continue?');
+                if (proceed) {
+                    const name = prompt('Step 3: Enter your name:');
+                    document.getElementById('sequence-result').textContent =
+                        'Sequence completed. Name: ' + (name || 'none');
+                } else {
+                    document.getElementById('sequence-result').textContent =
+                        'Sequence cancelled at step 2';
+                }
+            }
+        </script>
+    </div>
+
+    <div class="test-case">
+        <h2>Test 7: Alert on Page Load (Form Validation)</h2>
+        <p>Simulates form validation with alert</p>
+        <form onsubmit="return validateForm(event)">
+            <input type="text" id="username" placeholder="Username (required)">
+            <button type="submit">Submit</button>
+        </form>
+        <script>
+            function validateForm(event) {
+                event.preventDefault();
+                const username = document.getElementById('username').value;
+                if (!username) {
+                    alert('Please enter a username!');
+                    return false;
+                }
+                alert('Form submitted successfully!');
+                return true;
+            }
+        </script>
+    </div>
+
+    <hr>
+    <p><a href="/">Back to Home</a></p>
+</body>
+</html>

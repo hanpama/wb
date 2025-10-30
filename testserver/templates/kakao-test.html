@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kakao Map Component Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; max-width: 800px; }
+        .test-case { border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <h1>Kakao Map Component Test</h1>
+
+    <div class="test-case">
+        <h2>Original Kakao Map Component</h2>
+        <a target="_blank" href="http://map.kakao.com/" style="float: left; width: 32px; height: 10px;">
+            <img src="https://t1.daumcdn.net/mapjsapi/images/2x/m_bi_b.png" alt="Kakao 맵으로 이동(새창열림)" style="float: left; width: 32px; height: 10px; border: medium;">
+        </a>
+        <div style="clear: both;"></div>
+    </div>
+
+    <div class="test-case">
+        <h2>Similar Test Cases</h2>
+
+        <h3>1. Link with image (has alt)</h3>
+        <a href="/test1">
+            <img src="/image.png" alt="Test Image 1" width="50" height="50">
+        </a>
+
+        <h3>2. Link with image (no alt)</h3>
+        <a href="/test2">
+            <img src="/image.png" width="50" height="50">
+        </a>
+
+        <h3>3. Link with styled image</h3>
+        <a href="/test3" style="display: inline-block; width: 50px; height: 50px;">
+            <img src="/image.png" alt="Styled Image" style="width: 50px; height: 50px;">
+        </a>
+    </div>
+
+    <hr>
+    <p><a href="/">Back to Home</a></p>
+</body>
+</html>

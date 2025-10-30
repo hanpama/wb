@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Navigation Test - Page {{.Page}}</title>
+    <style>body { font-family: monospace; padding: 20px; }</style>
+</head>
+<body>
+    <h1>Navigation Test - Page {{.Page}}</h1>
+    <p>Click links to navigate between pages. Each should trigger full re-render.</p>
+
+    <nav>
+        <a href="/navigation?page=1">Page 1</a> |
+        <a href="/navigation?page=2">Page 2</a> |
+        <a href="/navigation?page=3">Page 3</a>
+    </nav>
+
+    <p>Current page content: {{.Page}}</p>
+
+    <p><a href="/">Back to Home</a></p>
+</body>
+</html>

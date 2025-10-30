@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SPA Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        #content { border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <h1>SPA-style Update Test</h1>
+    <p>Click button to update content without navigation (AJAX-style).</p>
+
+    <button onclick="updateContent()">Update Content</button>
+
+    <div id="content">
+        <p>Initial content. Click the button above to update.</p>
+    </div>
+
+    <p><a href="/">Back to Home</a></p>
+
+    <script>
+        let counter = 0;
+        function updateContent() {
+            counter++;
+            document.getElementById('content').innerHTML =
+                '<p>Updated content #' + counter + '</p>' +
+                '<p>Timestamp: ' + new Date().toISOString() + '</p>';
+        }
+    </script>
+</body>
+</html>

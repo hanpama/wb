@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Form Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; max-width: 800px; }
+        form { margin: 20px 0; }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="email"], textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+        textarea { height: 80px; }
+        input[type="radio"], input[type="checkbox"] { margin: 5px; }
+        button {
+            margin: 15px 5px 5px 0;
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+        }
+        .message {
+            color: green;
+            font-weight: bold;
+            padding: 10px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            margin: 15px 0;
+        }
+        .radio-group, .checkbox-group { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Comprehensive Form Test</h1>
+    <p>Test all form input types: text, email, textarea, select, checkbox, radio buttons.</p>
+
+    {{if .Message}}
+    <p class="message">{{.Message}}</p>
+    {{end}}
+
+    <form method="POST">
+        <div class="form-group">
+            <label for="username">Text Input - Username:</label>
+            <input type="text" id="username" name="username" placeholder="Enter username" value="{{.Username}}">
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email Input:</label>
+            <input type="email" id="email" name="email" placeholder="Enter email" value="{{.Email}}">
+        </div>
+
+        <div class="form-group">
+            <label for="bio">Textarea - Bio:</label>
+            <textarea id="bio" name="bio" placeholder="Tell us about yourself">{{.Bio}}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="country">Select Dropdown - Country:</label>
+            <select id="country" name="country">
+                <option value="">-- Select Country --</option>
+                <option value="us"{{if eq .Country "us"}} selected{{end}}>United States</option>
+                <option value="uk"{{if eq .Country "uk"}} selected{{end}}>United Kingdom</option>
+                <option value="kr"{{if eq .Country "kr"}} selected{{end}}>South Korea</option>
+                <option value="jp"{{if eq .Country "jp"}} selected{{end}}>Japan</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Checkbox:</label>
+            <div class="checkbox-group">
+                <input type="checkbox" id="newsletter" name="newsletter" value="yes"{{if eq .Newsletter "yes"}} checked{{end}}>
+                <label for="newsletter" style="display:inline;">Subscribe to newsletter</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Radio Buttons - Gender:</label>
+            <div class="radio-group">
+                <input type="radio" id="male" name="gender" value="male"{{if eq .Gender "male"}} checked{{end}}>
+                <label for="male" style="display:inline;">Male</label><br>
+                <input type="radio" id="female" name="gender" value="female"{{if eq .Gender "female"}} checked{{end}}>
+                <label for="female" style="display:inline;">Female</label><br>
+                <input type="radio" id="other" name="gender" value="other"{{if eq .Gender "other"}} checked{{end}}>
+                <label for="other" style="display:inline;">Other</label>
+            </div>
+        </div>
+
+        <button type="submit">Submit Form</button>
+        <button type="reset">Reset Form</button>
+    </form>
+
+    <p><a href="/">Back to Home</a></p>
+</body>
+</html>

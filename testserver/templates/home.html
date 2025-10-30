@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>wb Test Server</title>
+    <style>
+        body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 20px; }
+        h1 { color: #333; }
+        .scenario { border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>wb Test Server</h1>
+    <p>This server provides various test scenarios for the wb terminal browser.</p>
+
+    <div class="scenario">
+        <h2><a href="/instant">1. Instant Load</a></h2>
+        <p>Page with no additional requests - tests immediate rendering.</p>
+    </div>
+
+    <div class="scenario">
+        <h2><a href="/slow-resource">2. Slow Resource Loading</a></h2>
+        <p>Page with slow-loading resources - tests WaitForStable and network status footer.</p>
+    </div>
+
+    <div class="scenario">
+        <h2><a href="/form">3. Form Interaction</a></h2>
+        <p>Form submission without navigation - tests diff rendering.</p>
+    </div>
+
+    <div class="scenario">
+        <h2><a href="/navigation">4. Click Navigation</a></h2>
+        <p>Link that navigates to new page - tests full re-render on URL change.</p>
+    </div>
+
+    <div class="scenario">
+        <h2><a href="/spa">5. SPA-style Updates</a></h2>
+        <p>AJAX updates without navigation - tests diff rendering for same document.</p>
+    </div>
+
+    <div class="scenario">
+        <h2><a href="/multiple-requests">6. Multiple Concurrent Requests</a></h2>
+        <p>Page that loads many resources - tests request counting and stability detection.</p>
+    </div>
+
+    <div class="scenario">
+        <h2><a href="/diff-test">7. Diff Test</a></h2>
+        <p>Page with buttons that modify content - tests unified diff rendering.</p>
+    </div>
+</body>
+</html>

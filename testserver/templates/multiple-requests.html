@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multiple Requests Test</title>
+    <style>body { font-family: monospace; padding: 20px; }</style>
+</head>
+<body>
+    <h1>Multiple Concurrent Requests Test</h1>
+    <p>This page triggers 10 requests with varying delays.</p>
+    <p>Run 'wb show' multiple times to watch the request count decrease.</p>
+
+    <div id="status">Loading resources...</div>
+
+    <p><a href="/">Back to Home</a></p>
+
+    <script>
+        const delays = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5];
+        let completed = 0;
+
+        delays.forEach((delay, i) => {
+            fetch('/delay?seconds=' + delay)
+                .then(() => {
+                    completed++;
+                    document.getElementById('status').textContent =
+                        'Completed: ' + completed + ' / ' + delays.length;
+                });
+        });
+    </script>
+</body>
+</html>
