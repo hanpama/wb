@@ -84,9 +84,6 @@ services:
   wb:
     image: ghcr.io/hanpama/wb:main
     container_name: wb
-    environment:
-      - WB_PORT=62066
-      - WB_HEADLESS=true
     restart: unless-stopped
     shm_size: 2gb
     security_opt:

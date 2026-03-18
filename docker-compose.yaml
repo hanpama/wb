@@ -5,9 +5,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: wb
-    environment:
-      - WB_PORT=62066
-      - WB_HEADLESS=true
     restart: unless-stopped
     # Shared memory for Chrome
     shm_size: 2gb
