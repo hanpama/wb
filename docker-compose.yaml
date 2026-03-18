@@ -5,10 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: wb
-    ports:
-      - "62066:62066"
     environment:
-      - WB_INTERNAL_DAEMON=1
       - WB_PORT=62066
       - WB_HEADLESS=true
     restart: unless-stopped
@@ -17,20 +14,9 @@ services:
     # Security options for Chrome in container
     security_opt:
       - seccomp:unconfined
-    # Resource limits (optional)
     deploy:
       resources:
         limits:
           memory: 4G
         reservations:
           memory: 1G
-
-  testserver:
-    image: wb-testserver:latest
-    build:
-      context: ./testserver
-      dockerfile: Dockerfile
-    container_name: wb-testserver
-    ports:
-      - "8080:8080"
-    restart: unless-stopped

@@ -15,7 +15,6 @@ import (
 	"github.com/hanpama/wb/internal/browser"
 	"github.com/hanpama/wb/internal/browser/cdp"
 	"github.com/hanpama/wb/internal/logging"
-	"github.com/hanpama/wb/internal/renderer"
 	"github.com/hanpama/wb/internal/service"
 	"github.com/hanpama/wb/pkg/diff"
 	"github.com/hanpama/wb/pkg/ir"
@@ -106,9 +105,8 @@ func convertPendingDialog(dialog *service.PendingDialogInfo) []protocol.PendingD
 	}
 }
 
-func paginateMarkdown(snapshot *ir.PageSnapshot, offset, limit int) (md string, totalLines, actualOffset, actualLimit int) {
-	fullMarkdown := renderer.RenderBody(snapshot)
-	lines := strings.Split(fullMarkdown, "\n")
+func paginateContent(content string, offset, limit int) (md string, totalLines, actualOffset, actualLimit int) {
+	lines := strings.Split(content, "\n")
 	totalLines = len(lines)
 
 	if limit == 0 {
@@ -159,7 +157,7 @@ func (r *RPCReceiver) NewTab(args *protocol.NewTabArgs, reply *protocol.NewTabRe
 	r.state.mu.Unlock()
 
 	// Paginate
-	md, totalLines, offset, limit := paginateMarkdown(result.NewSnapshot, 0, DefaultLinesLimit)
+	md, totalLines, offset, limit := paginateContent(result.NewSnapshot.Content, 0, DefaultLinesLimit)
 
 	reply.TabID = string(result.TabID)
 	reply.Title = result.NewSnapshot.Title
@@ -198,7 +196,7 @@ func (r *RPCReceiver) Show(args *protocol.ShowArgs, reply *protocol.ShowReply) e
 	r.state.mu.Unlock()
 
 	// Paginate
-	md, totalLines, offset, limit := paginateMarkdown(snapshot, args.Offset, args.Limit)
+	md, totalLines, offset, limit := paginateContent(snapshot.Content, args.Offset, args.Limit)
 
 	// Get metadata
 	metadata := r.service.GetMetadata(ctx, tabID)
@@ -251,7 +249,7 @@ func (r *RPCReceiver) Click(args *protocol.ClickArgs, reply *protocol.ClickReply
 	if result.DocumentChanged {
 		// Full render for new document
 		reply.URLChanged = true
-		md, totalLines, offset, limit := paginateMarkdown(result.NewSnapshot, 0, DefaultLinesLimit)
+		md, totalLines, offset, limit := paginateContent(result.NewSnapshot.Content, 0, DefaultLinesLimit)
 		reply.Markdown = md
 		reply.TotalLines = totalLines
 		reply.Offset = offset
@@ -260,9 +258,7 @@ func (r *RPCReceiver) Click(args *protocol.ClickArgs, reply *protocol.ClickReply
 		// Diff render for same document
 		reply.URLChanged = false
 		if lastViewed != nil {
-			oldMd := renderer.RenderBody(lastViewed)
-			newMd := renderer.RenderBody(result.NewSnapshot)
-			reply.Diff = diff.RenderDiff(oldMd, newMd)
+			reply.Diff = diff.RenderDiff(lastViewed.Content, result.NewSnapshot.Content)
 		}
 	}
 
@@ -306,7 +302,7 @@ func (r *RPCReceiver) Type(args *protocol.TypeArgs, reply *protocol.TypeReply) e
 	if result.DocumentChanged {
 		// Full render for new document
 		reply.URLChanged = true
-		md, totalLines, offset, limit := paginateMarkdown(result.NewSnapshot, 0, DefaultLinesLimit)
+		md, totalLines, offset, limit := paginateContent(result.NewSnapshot.Content, 0, DefaultLinesLimit)
 		reply.Markdown = md
 		reply.TotalLines = totalLines
 		reply.Offset = offset
@@ -315,9 +311,7 @@ func (r *RPCReceiver) Type(args *protocol.TypeArgs, reply *protocol.TypeReply) e
 		// Diff render for same document
 		reply.URLChanged = false
 		if lastViewed != nil {
-			oldMd := renderer.RenderBody(lastViewed)
-			newMd := renderer.RenderBody(result.NewSnapshot)
-			reply.Diff = diff.RenderDiff(oldMd, newMd)
+			reply.Diff = diff.RenderDiff(lastViewed.Content, result.NewSnapshot.Content)
 		}
 	}
 
@@ -361,7 +355,7 @@ func (r *RPCReceiver) Enter(args *protocol.EnterArgs, reply *protocol.EnterReply
 	if result.DocumentChanged {
 		// Full render for new document
 		reply.URLChanged = true
-		md, totalLines, offset, limit := paginateMarkdown(result.NewSnapshot, 0, DefaultLinesLimit)
+		md, totalLines, offset, limit := paginateContent(result.NewSnapshot.Content, 0, DefaultLinesLimit)
 		reply.Markdown = md
 		reply.TotalLines = totalLines
 		reply.Offset = offset
@@ -370,9 +364,7 @@ func (r *RPCReceiver) Enter(args *protocol.EnterArgs, reply *protocol.EnterReply
 		// Diff render for same document
 		reply.URLChanged = false
 		if lastViewed != nil {
-			oldMd := renderer.RenderBody(lastViewed)
-			newMd := renderer.RenderBody(result.NewSnapshot)
-			reply.Diff = diff.RenderDiff(oldMd, newMd)
+			reply.Diff = diff.RenderDiff(lastViewed.Content, result.NewSnapshot.Content)
 		}
 	}
 
@@ -444,7 +436,7 @@ func (r *RPCReceiver) Open(args *protocol.OpenArgs, reply *protocol.OpenReply) e
 	r.state.lastViewedSnapshots[tabID] = result.NewSnapshot
 	r.state.mu.Unlock()
 
-	md, totalLines, offset, limit := paginateMarkdown(result.NewSnapshot, 0, DefaultLinesLimit)
+	md, totalLines, offset, limit := paginateContent(result.NewSnapshot.Content, 0, DefaultLinesLimit)
 
 	reply.TabID = string(tabID)
 	reply.Title = result.NewSnapshot.Title
@@ -483,7 +475,7 @@ func (r *RPCReceiver) Back(args *protocol.BackArgs, reply *protocol.BackReply) e
 	r.state.mu.Unlock()
 
 	// Full render (navigation always changes document)
-	md, totalLines, offset, limit := paginateMarkdown(result.NewSnapshot, 0, DefaultLinesLimit)
+	md, totalLines, offset, limit := paginateContent(result.NewSnapshot.Content, 0, DefaultLinesLimit)
 
 	reply.TabID = string(tabID)
 	reply.Title = result.NewSnapshot.Title
@@ -522,7 +514,7 @@ func (r *RPCReceiver) Forward(args *protocol.ForwardArgs, reply *protocol.Forwar
 	r.state.mu.Unlock()
 
 	// Full render (navigation always changes document)
-	md, totalLines, offset, limit := paginateMarkdown(result.NewSnapshot, 0, DefaultLinesLimit)
+	md, totalLines, offset, limit := paginateContent(result.NewSnapshot.Content, 0, DefaultLinesLimit)
 
 	reply.TabID = string(tabID)
 	reply.Title = result.NewSnapshot.Title
@@ -605,7 +597,7 @@ func (r *RPCReceiver) Switch(args *protocol.SwitchArgs, reply *protocol.SwitchRe
 	r.state.lastViewedSnapshots[tabID] = snapshot
 	r.state.mu.Unlock()
 
-	md, totalLines, offset, limit := paginateMarkdown(snapshot, 0, DefaultLinesLimit)
+	md, totalLines, offset, limit := paginateContent(snapshot.Content, 0, DefaultLinesLimit)
 
 	// Get metadata
 	metadata := r.service.GetMetadata(ctx, tabID)
@@ -692,7 +684,7 @@ func (r *RPCReceiver) RespondToDialog(args *protocol.RespondToDialogArgs, reply 
 	reply.PendingDialogs = convertPendingDialog(result.Metadata.PendingDialog)
 
 	// Render full page
-	md, totalLines, offset, limit := paginateMarkdown(result.NewSnapshot, 0, DefaultLinesLimit)
+	md, totalLines, offset, limit := paginateContent(result.NewSnapshot.Content, 0, DefaultLinesLimit)
 	reply.Markdown = md
 	reply.TotalLines = totalLines
 	reply.Offset = offset
@@ -718,7 +710,7 @@ func (r *RPCReceiver) Describe(args *protocol.DescribeArgs, reply *protocol.Desc
 	}
 
 	// Find element by hash
-	node, found := snapshot.InteractiveMap[args.Hash]
+	elem, found := snapshot.InteractiveMap[args.Hash]
 	if !found {
 		reply.Found = false
 		return nil
@@ -726,34 +718,17 @@ func (r *RPCReceiver) Describe(args *protocol.DescribeArgs, reply *protocol.Desc
 
 	reply.Found = true
 	reply.Hash = args.Hash
-	reply.Tag = node.Tag
-	reply.Selector = node.Selector
-	reply.Attributes = node.Attributes // Include all HTML attributes
-
-	if node.Interactive != nil {
-		reply.Type = string(node.Interactive.Type)
-		reply.Href = node.Interactive.Href
-		reply.Placeholder = node.Interactive.Placeholder
-		reply.Value = node.Interactive.Value
-		reply.InputType = node.Interactive.InputType
-	}
-
-	// Get text content
-	if len(node.Children) > 0 && node.Children[0].Type == ir.NodeTypeText {
-		reply.Text = node.Children[0].Text
-	}
-
-	// Handle images
-	if node.Tag == "img" {
-		reply.ImgSrc = node.Attributes["src"]
-		reply.ImgAlt = node.Attributes["alt"]
-	}
+	reply.Role = elem.Role
+	reply.Name = elem.Name
+	reply.Value = elem.Value
+	reply.URL = elem.URL
+	reply.Checked = elem.Checked
 
 	return nil
 }
 
-// DumpIR dumps the raw IR JSON structure for debugging
-func (r *RPCReceiver) DumpIR(args *protocol.DumpIRArgs, reply *protocol.DumpIRReply) error {
+// DumpAX dumps the raw accessibility tree JSON for debugging
+func (r *RPCReceiver) DumpAX(args *protocol.DumpAXArgs, reply *protocol.DumpAXReply) error {
 	ctx := context.Background()
 
 	r.state.mu.RLock()

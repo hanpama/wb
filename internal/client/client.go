@@ -569,69 +569,40 @@ var describeCmd = &cobra.Command{
 			return
 		}
 
-		// Display element information with 3 sections
 		fmt.Printf("Element {%s}\n", describeReply.Hash)
 		fmt.Println("────────────────────────────────────────────────────────────────")
-
-		// Section 1: Basic Info
-		fmt.Println("Basic Info:")
-		fmt.Printf("  Tag:      <%s>\n", describeReply.Tag)
-		if describeReply.Type != "" {
-			fmt.Printf("  Type:     %s\n", describeReply.Type)
+		fmt.Printf("  Role:     %s\n", describeReply.Role)
+		if describeReply.Name != "" {
+			fmt.Printf("  Name:     %s\n", describeReply.Name)
 		}
-		if describeReply.Text != "" {
-			fmt.Printf("  Text:     %s\n", describeReply.Text)
+		if describeReply.Value != "" {
+			fmt.Printf("  Value:    %s\n", describeReply.Value)
 		}
-		if describeReply.Selector != "" {
-			fmt.Printf("  Selector: %s\n", describeReply.Selector)
+		if describeReply.URL != "" {
+			fmt.Printf("  URL:      %s\n", describeReply.URL)
 		}
-
-		// Section 2: HTML Attributes
-		if len(describeReply.Attributes) > 0 {
-			fmt.Println("\nHTML Attributes:")
-			// Sort attribute keys for consistent output
-			keys := make([]string, 0, len(describeReply.Attributes))
-			for k := range describeReply.Attributes {
-				keys = append(keys, k)
-			}
-			// Simple alphabetical sort
-			for i := 0; i < len(keys); i++ {
-				for j := i + 1; j < len(keys); j++ {
-					if keys[i] > keys[j] {
-						keys[i], keys[j] = keys[j], keys[i]
-					}
-				}
-			}
-			for _, key := range keys {
-				value := describeReply.Attributes[key]
-				if len(value) > 60 {
-					value = value[:57] + "..."
-				}
-				fmt.Printf("  %-12s %s\n", key, value)
-			}
+		if describeReply.Checked != "" {
+			fmt.Printf("  Checked:  %s\n", describeReply.Checked)
 		}
-
 		fmt.Println("────────────────────────────────────────────────────────────────")
 
-		// Section 3: How to interact
-		if describeReply.Type != "image" && describeReply.Type != "" {
-			fmt.Println("\nHow to interact:")
-			switch describeReply.Type {
-			case "link":
-				fmt.Printf("  wb click %s     # Navigate to this link\n", hash)
-			case "button":
-				fmt.Printf("  wb click %s     # Click this button\n", hash)
-			case "textinput", "textarea":
-				fmt.Printf("  wb input %s \"your text\"  # Enter text\n", hash)
-			case "checkbox":
-				fmt.Printf("  wb click %s     # Toggle checkbox\n", hash)
-			case "radio":
-				fmt.Printf("  wb click %s     # Select this option\n", hash)
-			case "select":
-				fmt.Printf("  wb click %s     # Open dropdown menu\n", hash)
-			default:
-				fmt.Printf("  wb click %s     # Interact with this element\n", hash)
-			}
+		fmt.Println("\nHow to interact:")
+		switch describeReply.Role {
+		case "link":
+			fmt.Printf("  wb click %s     # Navigate to this link\n", hash)
+		case "button":
+			fmt.Printf("  wb click %s     # Click this button\n", hash)
+		case "textbox", "searchbox":
+			fmt.Printf("  wb click %s     # Focus this input\n", hash)
+			fmt.Printf("  wb type \"text\"  # Type text into focused input\n")
+		case "checkbox", "switch":
+			fmt.Printf("  wb click %s     # Toggle\n", hash)
+		case "radio":
+			fmt.Printf("  wb click %s     # Select this option\n", hash)
+		case "combobox", "listbox":
+			fmt.Printf("  wb click %s     # Open dropdown\n", hash)
+		default:
+			fmt.Printf("  wb click %s     # Interact with this element\n", hash)
 		}
 	},
 }

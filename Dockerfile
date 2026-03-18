@@ -1,9 +1,17 @@
-FROM golang:1.25-bookworm
+FROM golang:1.25-bookworm AS builder
 
-# Install Chromium and dependencies
-RUN apt-get update && apt-get install -y \
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 go build -o wb .
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
-    chromium-driver \
     ca-certificates \
     fonts-liberation \
     libasound2 \
@@ -26,22 +34,8 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
+COPY --from=builder /app/wb /usr/local/bin/wb
 
-# Copy go mod files
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build the application
-RUN go build -o wb .
-
-# Set Chromium path for the application
 ENV CHROME_PATH=/usr/bin/chromium
 
-CMD ["sh", "-c", "WB_INTERNAL_DAEMON=1 /app/wb"]
+CMD ["sh", "-c", "WB_INTERNAL_DAEMON=1 wb"]

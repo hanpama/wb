@@ -26,11 +26,8 @@ type Backend struct {
 	tabs      map[browser.TabID]*Tab
 	nextTabID int
 
-	// Interactive element tracking: tabID -> (hash -> BackendNodeID)
+	// Interactive element tracking: tabID -> (hash -> BackendDOMNodeID)
 	interactiveElements map[browser.TabID]map[string]int
-
-	// Focus tracking: tabID -> focused element hash
-	focusedElement map[browser.TabID]string
 }
 
 type Tab struct {
@@ -65,7 +62,6 @@ func NewBackend() *Backend {
 	return &Backend{
 		tabs:                make(map[browser.TabID]*Tab),
 		interactiveElements: make(map[browser.TabID]map[string]int),
-		focusedElement:      make(map[browser.TabID]string),
 	}
 }
 
@@ -187,6 +183,11 @@ func (b *Backend) CreateTab(ctx context.Context, url string) (browser.TabID, err
 		return "", fmt.Errorf("failed to enable Network domain: %w", err)
 	}
 
+	if _, err := pageClient.SendCommand(ctx, "Accessibility.enable", nil); err != nil {
+		pageClient.Close()
+		return "", fmt.Errorf("failed to enable Accessibility domain: %w", err)
+	}
+
 	// Create tab entry
 	b.nextTabID++
 	tabID := browser.TabID(fmt.Sprintf("tab-%d", b.nextTabID))
@@ -264,7 +265,7 @@ func (b *Backend) Navigate(ctx context.Context, tabID browser.TabID, url string)
 	return nil
 }
 
-// GetSnapshot captures the current page snapshot
+// GetSnapshot captures the current page snapshot using the accessibility tree
 func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.PageSnapshot, error) {
 	logging.BackendMethodStart("GetSnapshot", map[string]interface{}{"tab.id": tabID})
 
@@ -278,12 +279,11 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 	}
 
 	// Get current URL from tab.currentURL (updated by Page.frameNavigated event)
-	// This is more reliable than Target.getTargetInfo which updates asynchronously
 	tab.mu.RLock()
 	url := tab.currentURL
 	tab.mu.RUnlock()
 
-	// Fallback to Target.getTargetInfo if currentURL is not set
+	// Get title from Target.getTargetInfo
 	var title string
 	if url == "" {
 		result, err := tab.Client.SendCommand(ctx, "Target.getTargetInfo", map[string]any{
@@ -293,17 +293,11 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 			logging.BackendMethodEnd("GetSnapshot", false, map[string]interface{}{"tab.id": tabID, "error": "failed to get target info"})
 			return nil, fmt.Errorf("failed to get target info: %w", err)
 		}
-
-		targetInfo, ok := result["targetInfo"].(map[string]any)
-		if !ok {
-			logging.BackendMethodEnd("GetSnapshot", false, map[string]interface{}{"tab.id": tabID, "error": "invalid targetInfo"})
-			return nil, fmt.Errorf("invalid targetInfo in response")
+		if targetInfo, ok := result["targetInfo"].(map[string]any); ok {
+			url, _ = targetInfo["url"].(string)
+			title, _ = targetInfo["title"].(string)
 		}
-
-		url, _ = targetInfo["url"].(string)
-		title, _ = targetInfo["title"].(string)
 	} else {
-		// Get title from Target.getTargetInfo (we still need it)
 		result, err := tab.Client.SendCommand(ctx, "Target.getTargetInfo", map[string]any{
 			"targetId": tab.TargetID,
 		})
@@ -314,13 +308,11 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 		}
 	}
 
-	// Capture DOM snapshot via CDP with timeout
+	// Get accessibility tree with timeout
 	captureCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	captureResult, err := tab.Client.SendCommand(captureCtx, "DOMSnapshot.captureSnapshot", map[string]any{
-		"computedStyles": []string{},
-	})
+	axResult, err := tab.Client.SendCommand(captureCtx, "Accessibility.getFullAXTree", map[string]any{})
 	if err != nil {
 		// Check if timeout due to dialog
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -329,8 +321,7 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 			tab.mu.RUnlock()
 
 			if hasDialog {
-				logging.Debug("DOMSnapshot timeout due to dialog", map[string]interface{}{"tab.id": tabID})
-				// Return empty snapshot when dialog is blocking
+				logging.Debug("AX tree timeout due to dialog", map[string]interface{}{"tab.id": tabID})
 				logging.BackendMethodEnd("GetSnapshot", true, map[string]interface{}{"tab.id": tabID, "has_dialog": true})
 				return &ir.PageSnapshot{
 					URL:   url,
@@ -338,39 +329,31 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 				}, nil
 			}
 		}
-		logging.BackendMethodEnd("GetSnapshot", false, map[string]interface{}{"tab.id": tabID, "error": "failed to capture snapshot"})
-		return nil, fmt.Errorf("failed to capture snapshot: %w", err)
+		logging.BackendMethodEnd("GetSnapshot", false, map[string]interface{}{"tab.id": tabID, "error": "failed to get AX tree"})
+		return nil, fmt.Errorf("failed to get AX tree: %w", err)
 	}
 
-	// Convert CDP response to IR
-	snapshot, err := ConvertCDPToSnapshot(captureResult, url, title)
-	if err != nil {
-		logging.BackendMethodEnd("GetSnapshot", false, map[string]interface{}{"tab.id": tabID, "error": "failed to convert snapshot"})
-		return nil, fmt.Errorf("failed to convert snapshot: %w", err)
+	// Parse and render AX tree
+	root := ParseAXTree(axResult)
+	content, elementInfoMap, focusedHash := RenderAXSnapshot(root)
+
+	logging.Debug("AX snapshot rendered", map[string]interface{}{"tab.id": tabID, "element.count": len(elementInfoMap)})
+
+	snapshot := &ir.PageSnapshot{
+		URL:            url,
+		Title:          title,
+		Content:        content,
+		InteractiveMap: elementInfoMap,
+		FocusedHash:    focusedHash,
 	}
 
-	// Extract interactive elements and build map
-	elements := ExtractInteractiveElements(snapshot)
-	logging.Debug("Extracted interactive elements", map[string]interface{}{"tab.id": tabID, "element.count": len(elements)})
-
-	// Enrich elements with runtime state (value, checked, etc.)
-	if err := b.enrichElementStates(ctx, tab, elements); err != nil {
-		// Log error but don't fail - we can still show the page without runtime states
-		logging.Warn("Failed to enrich element states", map[string]interface{}{"tab.id": tabID, "error": err.Error()})
-	}
-
-	snapshot.InteractiveMap = BuildInteractiveMap(elements)
-
-	// Store hash -> BackendNodeID mapping for this tab
+	// Store hash -> backendDOMNodeID mapping for this tab
 	b.mu.Lock()
 	hashMap := make(map[string]int)
-	for _, elem := range elements {
-		hashMap[elem.Hash] = elem.BackendNodeID
+	for hash, elem := range elementInfoMap {
+		hashMap[hash] = elem.BackendDOMNodeID
 	}
 	b.interactiveElements[tabID] = hashMap
-
-	// Set focused element hash in snapshot
-	snapshot.FocusedHash = b.focusedElement[tabID]
 	b.mu.Unlock()
 
 	// Include pending dialog info
@@ -385,95 +368,6 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 	return snapshot, nil
 }
 
-// enrichElementStates queries runtime state for interactive elements
-func (b *Backend) enrichElementStates(ctx context.Context, tab *Tab, elements []*InteractiveElement) error {
-	for _, elem := range elements {
-		if elem.Node == nil || elem.Node.Interactive == nil {
-			continue
-		}
-
-		// Resolve BackendNodeID to ObjectID
-		resolveResult, err := tab.Client.SendCommand(ctx, "DOM.resolveNode", map[string]any{
-			"backendNodeId": elem.BackendNodeID,
-		})
-		if err != nil {
-			continue // Skip this element on error
-		}
-
-		object, ok := resolveResult["object"].(map[string]any)
-		if !ok {
-			continue
-		}
-
-		objectID, ok := object["objectId"].(string)
-		if !ok {
-			continue
-		}
-
-		// Query runtime state based on element type
-		switch elem.Node.Interactive.Type {
-		case ir.InteractiveInput, ir.InteractiveTextarea:
-			// Get this.value
-			if value, err := b.getElementProperty(ctx, tab, objectID, "value"); err == nil {
-				elem.Node.Interactive.Value = value
-			}
-
-		case ir.InteractiveCheckbox, ir.InteractiveRadio:
-			// Get this.checked
-			if checked, err := b.getElementPropertyBool(ctx, tab, objectID, "checked"); err == nil {
-				elem.Node.Interactive.Checked = checked
-			}
-
-		case ir.InteractiveSelect:
-			// Get this.value for select
-			if value, err := b.getElementProperty(ctx, tab, objectID, "value"); err == nil {
-				elem.Node.Interactive.Value = value
-			}
-		}
-	}
-
-	return nil
-}
-
-// getElementProperty gets a string property from an element using Runtime.callFunctionOn
-func (b *Backend) getElementProperty(ctx context.Context, tab *Tab, objectID string, property string) (string, error) {
-	result, err := tab.Client.SendCommand(ctx, "Runtime.callFunctionOn", map[string]any{
-		"objectId":            objectID,
-		"functionDeclaration": fmt.Sprintf("function() { return this.%s; }", property),
-		"returnByValue":       true,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	resultObj, ok := result["result"].(map[string]any)
-	if !ok {
-		return "", fmt.Errorf("invalid result")
-	}
-
-	value, _ := resultObj["value"].(string)
-	return value, nil
-}
-
-// getElementPropertyBool gets a boolean property from an element
-func (b *Backend) getElementPropertyBool(ctx context.Context, tab *Tab, objectID string, property string) (bool, error) {
-	result, err := tab.Client.SendCommand(ctx, "Runtime.callFunctionOn", map[string]any{
-		"objectId":            objectID,
-		"functionDeclaration": fmt.Sprintf("function() { return this.%s; }", property),
-		"returnByValue":       true,
-	})
-	if err != nil {
-		return false, err
-	}
-
-	resultObj, ok := result["result"].(map[string]any)
-	if !ok {
-		return false, fmt.Errorf("invalid result")
-	}
-
-	value, _ := resultObj["value"].(bool)
-	return value, nil
-}
 
 // Click clicks on an element using CDP native methods
 // selector format: "backend:<backendNodeId>"
@@ -502,18 +396,6 @@ func (b *Backend) Click(ctx context.Context, tabID browser.TabID, selector strin
 		})
 		return fmt.Errorf("invalid selector format: %s", selector)
 	}
-
-	// Find hash for this backendNodeID (for focus tracking)
-	b.mu.RLock()
-	hashMap := b.interactiveElements[tabID]
-	var elementHash string
-	for hash, nodeID := range hashMap {
-		if nodeID == backendNodeID {
-			elementHash = hash
-			break
-		}
-	}
-	b.mu.RUnlock()
 
 	// 1. Resolve BackendNodeId to ObjectId
 	logging.Debug("Click: Calling DOM.resolveNode", map[string]interface{}{
@@ -647,13 +529,6 @@ func (b *Backend) Click(ctx context.Context, tabID browser.TabID, selector strin
 		logging.Debug("Click: Input.dispatchMouseEvent (mouseReleased) completed", map[string]interface{}{
 			"tab.id": tabID,
 		})
-	}
-
-	// 5. Track focused element
-	if elementHash != "" {
-		b.mu.Lock()
-		b.focusedElement[tabID] = elementHash
-		b.mu.Unlock()
 	}
 
 	logging.BackendMethodEnd("Click", true, map[string]interface{}{
@@ -1078,6 +953,10 @@ func (b *Backend) DiscoverAndTrackNewTabs(ctx context.Context) ([]browser.TabID,
 			continue
 		}
 		if _, err := pageClient.SendCommand(ctx, "Network.enable", nil); err != nil {
+			pageClient.Close()
+			continue
+		}
+		if _, err := pageClient.SendCommand(ctx, "Accessibility.enable", nil); err != nil {
 			pageClient.Close()
 			continue
 		}

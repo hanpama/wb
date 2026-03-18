@@ -208,27 +208,21 @@ type DescribeArgs struct {
 
 // DescribeReply represents the reply for Describe RPC call
 type DescribeReply struct {
-	Hash       string
-	Type       string
-	Tag        string
-	Text       string
-	Href       string
-	ImgSrc     string            // Full image URL (for img elements)
-	ImgAlt     string            // Image alt text (for img elements)
-	Placeholder string
-	Value      string
-	InputType  string
-	Selector   string
-	Attributes map[string]string // All HTML attributes
-	Found      bool
+	Hash    string
+	Role    string // AX role: "link", "button", "textbox", etc.
+	Name    string // Computed accessible name
+	Value   string
+	URL     string
+	Checked string
+	Found   bool
 }
 
-// DumpIRArgs represents the arguments for DumpIR RPC call
-type DumpIRArgs struct{}
+// DumpAXArgs represents the arguments for DumpAX RPC call
+type DumpAXArgs struct{}
 
-// DumpIRReply represents the reply for DumpIR RPC call
-type DumpIRReply struct {
-	JSON string // Raw IR JSON structure
+// DumpAXReply represents the reply for DumpAX RPC call
+type DumpAXReply struct {
+	JSON string // Raw AX tree JSON structure
 }
 
 // RespondToDialogArgs represents the arguments for RespondToDialog RPC call
