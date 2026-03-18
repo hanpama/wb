@@ -30,7 +30,6 @@ func ParseAXTree(result map[string]any) *AXNode {
 		return nil
 	}
 
-	// Build lookup map
 	nodeMap := make(map[string]*AXNode, len(nodesRaw))
 	var rootID string
 
@@ -45,31 +44,25 @@ func ParseAXTree(result map[string]any) *AXNode {
 		if id, ok := m["nodeId"].(string); ok {
 			node.NodeID = id
 		}
-
 		if role, ok := m["role"].(map[string]any); ok {
 			if v, ok := role["value"].(string); ok {
 				node.Role = v
 			}
 		}
-
 		if name, ok := m["name"].(map[string]any); ok {
 			if v, ok := name["value"].(string); ok {
 				node.Name = v
 			}
 		}
-
 		if value, ok := m["value"].(map[string]any); ok {
 			if v, ok := value["value"].(string); ok {
 				node.Value = v
 			}
 		}
-
-		// Extract backendDOMNodeId
 		if bid, ok := m["backendDOMNodeId"].(float64); ok {
 			node.BackendDOMNodeID = int(bid)
 		}
 
-		// Extract properties
 		if props, ok := m["properties"].([]any); ok {
 			for _, p := range props {
 				pm, ok := p.(map[string]any)
@@ -82,7 +75,6 @@ func ParseAXTree(result map[string]any) *AXNode {
 					continue
 				}
 				val := propValue["value"]
-
 				switch propName {
 				case "url":
 					if s, ok := val.(string); ok {
@@ -110,7 +102,6 @@ func ParseAXTree(result map[string]any) *AXNode {
 		}
 	}
 
-	// Build tree from childIds
 	for _, raw := range nodesRaw {
 		m, ok := raw.(map[string]any)
 		if !ok {
@@ -121,7 +112,6 @@ func ParseAXTree(result map[string]any) *AXNode {
 		if parent == nil {
 			continue
 		}
-
 		if childIDs, ok := m["childIds"].([]any); ok {
 			for _, cid := range childIDs {
 				cidStr, ok := cid.(string)
@@ -138,12 +128,139 @@ func ParseAXTree(result map[string]any) *AXNode {
 	return nodeMap[rootID]
 }
 
-// RenderAXSnapshot renders an AX tree as Playwright-style aria snapshot text.
-// Returns the rendered content, a map of interactive elements, and the focused element hash.
+// ============================================================================
+// Phase 1: Normalize — clean the AX tree before rendering
+// ============================================================================
+
+// NormalizeAXTree produces a clean tree ready for rendering:
+//   - Removes: InlineTextBox, LineBreak, decorative img (no name)
+//   - Flattens: generic, none, Ignored, RootWebArea, WebArea (children promoted to parent)
+//   - Merges: adjacent text-like siblings into a single text node
+func NormalizeAXTree(node *AXNode) *AXNode {
+	if node == nil {
+		return nil
+	}
+	// Normalize all children recursively
+	var normalized []*AXNode
+	for _, child := range node.Children {
+		normalized = appendNormalized(normalized, child)
+	}
+	normalized = mergeAdjacentText(normalized)
+
+	// If root itself is transparent, wrap children in a synthetic root
+	switch node.Role {
+	case "RootWebArea", "WebArea":
+		node.Role = "RootWebArea"
+		node.Children = normalized
+		return node
+	}
+
+	node.Children = normalized
+	return node
+}
+
+// appendNormalized adds a child to the list, flattening transparent nodes
+// and skipping removed nodes.
+func appendNormalized(dst []*AXNode, node *AXNode) []*AXNode {
+	if node == nil {
+		return dst
+	}
+
+	switch node.Role {
+	// Remove: produce no output, no children worth keeping
+	case "InlineTextBox", "LineBreak":
+		return dst
+
+	// Remove: decorative images (no alt text)
+	case "img", "image":
+		if node.Name == "" {
+			return dst
+		}
+		node.Children = nil // img has no meaningful children
+		return append(dst, node)
+
+	// Flatten: promote children to parent level
+	case "generic", "none", "Ignored", "IgnoredRole", "RootWebArea", "WebArea":
+		for _, child := range node.Children {
+			dst = appendNormalized(dst, child)
+		}
+		return dst
+	}
+
+	// Keep: normalize children recursively
+	var normalized []*AXNode
+	for _, child := range node.Children {
+		normalized = appendNormalized(normalized, child)
+	}
+	normalized = mergeAdjacentText(normalized)
+	node.Children = normalized
+
+	return append(dst, node)
+}
+
+// isTextLike returns true if a node is purely textual and can be merged
+// with adjacent text. Only StaticText/text qualifies — all other roles
+// (even non-interactive ones like time, emphasis, strong) preserve their
+// structure and break merging.
+func isTextLike(node *AXNode) bool {
+	if node == nil {
+		return false
+	}
+	return node.Role == "StaticText" || node.Role == "text"
+}
+
+// mergeAdjacentText merges consecutive text-like siblings into one text node.
+// Non-text nodes break the run. This is lossless: StaticText/text nodes
+// contain nothing but their Name string, so merging preserves all content.
+func mergeAdjacentText(children []*AXNode) []*AXNode {
+	if len(children) == 0 {
+		return nil
+	}
+
+	var result []*AXNode
+	var textParts []string
+
+	flush := func() {
+		if len(textParts) > 0 {
+			merged := strings.TrimSpace(strings.Join(textParts, " "))
+			if merged != "" {
+				result = append(result, &AXNode{
+					Role: "StaticText",
+					Name: merged,
+				})
+			}
+			textParts = nil
+		}
+	}
+
+	for _, child := range children {
+		if isTextLike(child) && child.Name != "" {
+			textParts = append(textParts, child.Name)
+		} else if isTextLike(child) {
+			// empty text node — skip silently
+			continue
+		} else {
+			flush()
+			result = append(result, child)
+		}
+	}
+	flush()
+
+	return result
+}
+
+// ============================================================================
+// Phase 2: Render — convert normalized tree to text + register hashes
+// ============================================================================
+
+// RenderAXSnapshot normalizes then renders an AX tree.
+// Returns the rendered content, interactive element map, and focused hash.
 func RenderAXSnapshot(root *AXNode) (string, map[string]*ir.ElementInfo, string) {
 	if root == nil {
 		return "", nil, ""
 	}
+
+	root = NormalizeAXTree(root)
 
 	elements := make(map[string]*ir.ElementInfo)
 	var focusedHash string
@@ -152,7 +269,6 @@ func RenderAXSnapshot(root *AXNode) (string, map[string]*ir.ElementInfo, string)
 	renderNode(&sb, root, 0, elements, &focusedHash)
 
 	content := strings.TrimSpace(sb.String())
-	// Collapse excessive newlines
 	for strings.Contains(content, "\n\n\n") {
 		content = strings.ReplaceAll(content, "\n\n\n", "\n\n")
 	}
@@ -165,9 +281,8 @@ func renderNode(sb *strings.Builder, node *AXNode, depth int, elements map[strin
 		return
 	}
 
-	// Skip ignored/none roles and transparent containers
-	switch node.Role {
-	case "none", "Ignored", "IgnoredRole", "RootWebArea", "WebArea", "generic":
+	// Root container — render children only, no self
+	if node.Role == "RootWebArea" || node.Role == "WebArea" {
 		for _, child := range node.Children {
 			renderNode(sb, child, depth, elements, focusedHash)
 		}
@@ -196,22 +311,13 @@ func renderNode(sb *strings.Builder, node *AXNode, depth int, elements map[strin
 	}
 
 	// === Render self ===
-
 	switch node.Role {
-	// Explicitly skipped — return immediately, no children
-	case "InlineTextBox":
-		return
-	case "LineBreak":
-		return
-
-	// Leaf nodes — render self, no children
 	case "StaticText", "text":
 		if node.Name != "" {
 			fmt.Fprintf(sb, "\n%s- text %s", indent, quote(node.Name))
 		}
-		return
+		return // leaf
 
-	// Interactive elements with special formatting
 	case "link":
 		name := node.Name
 		if name == "" {
@@ -309,7 +415,6 @@ func renderNode(sb *strings.Builder, node *AXNode, depth int, elements map[strin
 	case "separator":
 		fmt.Fprintf(sb, "\n%s- separator", indent)
 
-	// All other roles — render with role name and optional name
 	default:
 		if node.Name != "" {
 			fmt.Fprintf(sb, "\n%s- %s %s", indent, node.Role, quote(node.Name))
@@ -318,11 +423,15 @@ func renderNode(sb *strings.Builder, node *AXNode, depth int, elements map[strin
 		}
 	}
 
-	// === Default: always render children (opt-out above via early return) ===
+	// === Always render children ===
 	for _, child := range node.Children {
 		renderNode(sb, child, depth+1, elements, focusedHash)
 	}
 }
+
+// ============================================================================
+// Helpers
+// ============================================================================
 
 func isInteractiveRole(role string) bool {
 	switch role {
@@ -345,15 +454,15 @@ func collectText(node *AXNode) string {
 		return ""
 	}
 	var parts []string
+	if node.Role == "StaticText" || node.Role == "text" {
+		if node.Name != "" {
+			return node.Name
+		}
+		return ""
+	}
 	for _, child := range node.Children {
-		if child.Role == "StaticText" || child.Role == "text" {
-			if child.Name != "" {
-				parts = append(parts, child.Name)
-			}
-		} else {
-			if t := collectText(child); t != "" {
-				parts = append(parts, t)
-			}
+		if t := collectText(child); t != "" {
+			parts = append(parts, t)
 		}
 	}
 	return strings.Join(parts, " ")
@@ -363,7 +472,6 @@ func quote(s string) string {
 	return fmt.Sprintf("%q", s)
 }
 
-// shortenURL truncates long URLs to make them more readable
 func shortenURL(url string, maxLen int) string {
 	if len(url) <= maxLen {
 		return url
