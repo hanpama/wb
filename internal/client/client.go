@@ -88,64 +88,53 @@ func connectToServer() (*rpc.Client, net.Conn, error) {
 
 var rootCmd = &cobra.Command{
 	Use:   "wb",
-	Short: "The TUI Web Browser",
-	Long:  "wb :: The TUI Web Browser",
+	Short: "wb - Terminal web browser powered by the accessibility tree",
+	Long: `wb - Terminal web browser
+
+Pages are rendered as an accessibility tree (aria snapshot format).
+Interactive elements are marked with {hash} identifiers for interaction.
+
+Quick Start:
+  wb open https://example.com       Open a page
+  wb show                           View current page (use --offset to scroll)
+  wb click {hash}                   Click a link or button
+  wb click {hash} && wb type "..."  Focus an input, then type into it
+  wb describe {hash}                Inspect element (AX info + DOM context)
+
+Output format:
+  - heading "Page Title" [level=1]
+  - link "Click me" [url=https://...] {a1b2c3d4}     <- clickable
+  - textbox "Search" [value=""] {e5f6g7h8}            <- focus + type
+  - checkbox "Agree" [checked=false] {i9j0k1l2}       <- toggle`,
+
 	Run: func(cmd *cobra.Command, args []string) {
-		// When called without arguments, show status and help
 		showStatusAndHelp(cmd)
 	},
 }
 
 func showStatusAndHelp(cmd *cobra.Command) {
-	// Try to get server status
 	client, conn, err := connectToServer()
 	if err != nil {
-		fmt.Println("[Status: Server not available]")
-		fmt.Println(" Use 'wb open <url>' to start browsing.")
+		fmt.Println("[Server not running]")
+		fmt.Println("Start browsing with: wb open https://example.com")
 	} else {
 		defer conn.Close()
 		defer client.Close()
 
-		// Call GetStatus to get tab information
 		var statusArgs protocol.GetStatusArgs
 		var statusReply protocol.GetStatusReply
 		err = client.Call("BrowserService.GetStatus", &statusArgs, &statusReply)
 
 		if err != nil || statusReply.TabCount == 0 {
-			fmt.Println("[Status: No tabs open]")
-			fmt.Println(" Start a new session with the command below.")
-			fmt.Println("> wb open https://example.com")
+			fmt.Println("[No tabs open]")
+			fmt.Println("Start browsing with: wb open https://example.com")
 		} else {
-			fmt.Printf("[Status: %d tabs open]\n", statusReply.TabCount)
-			fmt.Printf("🌐 The active tab is [%s: \"%s\"].\n", statusReply.ActiveTabID, statusReply.ActiveTabTitle)
-			fmt.Println("Use 'wb show' to view its content or 'wb list' to see all tabs.")
+			fmt.Printf("[%d tabs open] Active: %s - \"%s\"\n", statusReply.TabCount, statusReply.ActiveTabID, statusReply.ActiveTabTitle)
+			fmt.Println("  wb show        View page content")
+			fmt.Println("  wb list        See all tabs")
 		}
 	}
-
 	fmt.Println()
-	fmt.Println("────────────────────────────────────────────────────────────────")
-
-	// Show quick start guide
-	fmt.Println()
-	fmt.Println("Quick Start:")
-	fmt.Println("  1. Open a website:")
-	fmt.Println("     wb open https://example.com")
-	fmt.Println()
-	fmt.Println("  2. Interactive elements have {hash} identifiers:")
-	fmt.Println("     [Click here]{a1b2}  [Input/text: (empty)]{c3d4}")
-	fmt.Println()
-	fmt.Println("  3. Inspect an element to see what it does:")
-	fmt.Println("     wb describe a1b2")
-	fmt.Println()
-	fmt.Println("  4. Click links and buttons:")
-	fmt.Println("     wb click a1b2")
-	fmt.Println()
-	fmt.Println("  5. Fill in forms:")
-	fmt.Println("     wb input c3d4 \"your text here\"")
-	fmt.Println()
-	fmt.Println("────────────────────────────────────────────────────────────────")
-
-	// Use Cobra's built-in help
 	cmd.Help()
 }
 
@@ -192,7 +181,15 @@ var newCmd = &cobra.Command{
 
 var showCmd = &cobra.Command{
 	Use:   "show",
-	Short: "Show the current tab as markdown",
+	Short: "Show the current page (accessibility tree)",
+	Long: `Show the current page rendered as an accessibility tree (aria snapshot format).
+
+Use --offset and --limit to scroll through long pages.
+
+Examples:
+  wb show                  Show first 100 lines
+  wb show --offset 100     Show lines 100-200
+  wb show --limit 50       Show first 50 lines`,
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := connectToServer()
 		if err != nil {
@@ -233,7 +230,17 @@ func renderShowOutput(reply *protocol.ShowReply) {
 
 var clickCmd = &cobra.Command{
 	Use:   "click [hash]",
-	Short: "Click an interactive element by its hash",
+	Short: "Click an element by its {hash}",
+	Long: `Click an element identified by its {hash} from the page output.
+
+For links: navigates to the URL (full page render).
+For buttons: clicks and shows diff of changes.
+For inputs: focuses the element (then use 'wb type' to enter text).
+For checkboxes/radios: toggles the state.
+
+Examples:
+  wb click a1b2c3d4                  Click a link or button
+  wb click a1b2c3d4 && wb type "q"   Focus input, then type`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		hash := args[0]
@@ -262,7 +269,16 @@ var clickCmd = &cobra.Command{
 
 var typeCmd = &cobra.Command{
 	Use:   "type [text]",
-	Short: "Type text into the currently focused element",
+	Short: "Type text into the focused element",
+	Long: `Type text into the element that currently has focus.
+
+Use 'wb click {hash}' first to focus an input/textbox element,
+then 'wb type' to enter text. Use 'wb enter' to submit.
+
+Examples:
+  wb click a1b2c3d4          Focus a textbox
+  wb type "hello world"      Type into it
+  wb enter                   Press Enter to submit`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		text := args[0]
@@ -291,7 +307,7 @@ var typeCmd = &cobra.Command{
 
 var enterCmd = &cobra.Command{
 	Use:   "enter",
-	Short: "Press Enter on the currently focused element",
+	Short: "Press Enter on the focused element (submit forms, etc.)",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := connectToServer()
@@ -542,8 +558,18 @@ var closeCmd = &cobra.Command{
 
 var describeCmd = &cobra.Command{
 	Use:   "describe [hash]",
-	Short: "Describe an interactive element by its hash",
-	Args:  cobra.ExactArgs(1),
+	Short: "Inspect an element: AX info + DOM context",
+	Long: `Inspect an element by its {hash}. Shows:
+  - Accessibility info (role, name, value, URL)
+  - DOM context (ancestor path, siblings, children as HTML)
+
+Every element shown in the DOM context gets a {hash}, so you can
+chain 'wb describe' calls to navigate the DOM tree freely.
+
+Examples:
+  wb describe a1b2c3d4      Inspect an element from page output
+  wb describe f5e6d7c8      Navigate to a sibling shown in DOM context`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		hash := args[0]
 
