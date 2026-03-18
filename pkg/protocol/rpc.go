@@ -220,6 +220,16 @@ type DescribeReply struct {
 	DOMContext string
 }
 
+// EvalArgs represents the arguments for Eval RPC call
+type EvalArgs struct {
+	Expression string
+}
+
+// EvalReply represents the reply for Eval RPC call
+type EvalReply struct {
+	Result string
+}
+
 // DumpAXArgs represents the arguments for DumpAX RPC call
 type DumpAXArgs struct{}
 

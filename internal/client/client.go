@@ -702,6 +702,42 @@ func init() {
 	rootCmd.AddCommand(enterCmd)
 	rootCmd.AddCommand(describeCmd)
 	rootCmd.AddCommand(respondCmd)
+	rootCmd.AddCommand(evalCmd)
+}
+
+var evalCmd = &cobra.Command{
+	Use:   "eval [expression]",
+	Short: "Execute JavaScript in the current tab",
+	Long: `Execute a JavaScript expression in the current tab and print the result.
+
+The expression is evaluated via Chrome DevTools Protocol (Runtime.evaluate).
+Results are returned as JSON. Useful for debugging and inspecting page state.
+
+Examples:
+  wb eval "document.title"
+  wb eval "document.querySelectorAll('a').length"
+  wb eval "JSON.stringify(performance.timing)"`,
+	Args: cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		expression := args[0]
+
+		client, conn, err := connectToServer()
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
+		defer client.Close()
+
+		evalArgs := protocol.EvalArgs{Expression: expression}
+		var evalReply protocol.EvalReply
+
+		err = client.Call("BrowserService.Eval", &evalArgs, &evalReply)
+		if err != nil {
+			log.Fatal("Eval failed:", err)
+		}
+
+		fmt.Println(evalReply.Result)
+	},
 }
 
 // Run starts the client

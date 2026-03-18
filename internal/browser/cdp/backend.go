@@ -2,6 +2,7 @@ package cdp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -368,6 +369,53 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 	return snapshot, nil
 }
 
+
+// Eval executes a JavaScript expression in the current tab and returns the result as JSON
+func (b *Backend) Eval(ctx context.Context, tabID browser.TabID, expression string) (string, error) {
+	b.mu.RLock()
+	tab, ok := b.tabs[tabID]
+	b.mu.RUnlock()
+	if !ok {
+		return "", fmt.Errorf("tab not found: %s", tabID)
+	}
+
+	result, err := tab.Client.SendCommand(ctx, "Runtime.evaluate", map[string]any{
+		"expression":    expression,
+		"returnByValue": true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("eval failed: %w", err)
+	}
+
+	resultObj, ok := result["result"].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("invalid eval result")
+	}
+
+	// Check for exceptions
+	if exDesc, ok := result["exceptionDetails"].(map[string]any); ok {
+		if text, ok := exDesc["text"].(string); ok {
+			return "", fmt.Errorf("JS error: %s", text)
+		}
+	}
+
+	value := resultObj["value"]
+	if value == nil {
+		return "undefined", nil
+	}
+
+	// If it's a string, return directly
+	if s, ok := value.(string); ok {
+		return s, nil
+	}
+
+	// Otherwise JSON-encode
+	jsonBytes, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("%v", value), nil
+	}
+	return string(jsonBytes), nil
+}
 
 // Click clicks on an element using CDP native methods
 // selector format: "backend:<backendNodeId>"

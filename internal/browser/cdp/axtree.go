@@ -195,20 +195,23 @@ func renderNode(sb *strings.Builder, node *AXNode, depth int, elements map[strin
 		}
 	}
 
-	switch node.Role {
-	case "heading":
-		level := node.Level
-		if level == 0 {
-			level = 2
-		}
-		name := node.Name
-		if name == "" {
-			name = collectText(node)
-		}
-		if name != "" {
-			fmt.Fprintf(sb, "\n%s- heading %q [level=%d]", indent, name, level)
-		}
+	// === Render self ===
 
+	switch node.Role {
+	// Explicitly skipped — return immediately, no children
+	case "InlineTextBox":
+		return
+	case "LineBreak":
+		return
+
+	// Leaf nodes — render self, no children
+	case "StaticText", "text":
+		if node.Name != "" {
+			fmt.Fprintf(sb, "\n%s- text %s", indent, quote(node.Name))
+		}
+		return
+
+	// Interactive elements with special formatting
 	case "link":
 		name := node.Name
 		if name == "" {
@@ -232,9 +235,7 @@ func renderNode(sb *strings.Builder, node *AXNode, depth int, elements map[strin
 		fmt.Fprintf(sb, "\n%s- button %s {%s}", indent, quote(name), hash)
 
 	case "textbox", "searchbox":
-		name := node.Name
-		value := node.Value
-		fmt.Fprintf(sb, "\n%s- %s %s [value=%s] {%s}", indent, node.Role, quote(name), quote(value), hash)
+		fmt.Fprintf(sb, "\n%s- %s %s [value=%s] {%s}", indent, node.Role, quote(node.Name), quote(node.Value), hash)
 
 	case "checkbox":
 		checked := node.Checked
@@ -251,33 +252,28 @@ func renderNode(sb *strings.Builder, node *AXNode, depth int, elements map[strin
 		fmt.Fprintf(sb, "\n%s- radio %s [checked=%s] {%s}", indent, quote(node.Name), checked, hash)
 
 	case "combobox", "listbox":
-		name := node.Name
-		value := node.Value
-		fmt.Fprintf(sb, "\n%s- %s %s [value=%s] {%s}", indent, node.Role, quote(name), quote(value), hash)
+		fmt.Fprintf(sb, "\n%s- %s %s [value=%s] {%s}", indent, node.Role, quote(node.Name), quote(node.Value), hash)
 
 	case "option":
-		name := node.Name
 		selected := ""
 		if node.Checked == "true" {
 			selected = " [selected]"
 		}
 		if hash != "" {
-			fmt.Fprintf(sb, "\n%s- option %s%s {%s}", indent, quote(name), selected, hash)
+			fmt.Fprintf(sb, "\n%s- option %s%s {%s}", indent, quote(node.Name), selected, hash)
 		} else {
-			fmt.Fprintf(sb, "\n%s- option %s%s", indent, quote(name), selected)
+			fmt.Fprintf(sb, "\n%s- option %s%s", indent, quote(node.Name), selected)
 		}
 
 	case "menuitem", "menuitemcheckbox", "menuitemradio":
-		name := node.Name
-		fmt.Fprintf(sb, "\n%s- %s %s {%s}", indent, node.Role, quote(name), hash)
+		fmt.Fprintf(sb, "\n%s- %s %s {%s}", indent, node.Role, quote(node.Name), hash)
 
 	case "tab":
-		name := node.Name
 		selected := ""
 		if node.Checked == "true" {
 			selected = " [selected]"
 		}
-		fmt.Fprintf(sb, "\n%s- tab %s%s {%s}", indent, quote(name), selected, hash)
+		fmt.Fprintf(sb, "\n%s- tab %s%s {%s}", indent, quote(node.Name), selected, hash)
 
 	case "switch":
 		checked := node.Checked
@@ -292,108 +288,39 @@ func renderNode(sb *strings.Builder, node *AXNode, depth int, elements map[strin
 	case "spinbutton":
 		fmt.Fprintf(sb, "\n%s- spinbutton %s [value=%s] {%s}", indent, quote(node.Name), quote(node.Value), hash)
 
+	case "heading":
+		level := node.Level
+		if level == 0 {
+			level = 2
+		}
+		name := node.Name
+		if name == "" {
+			name = collectText(node)
+		}
+		if name != "" {
+			fmt.Fprintf(sb, "\n%s- heading %q [level=%d]", indent, name, level)
+		}
+
 	case "img", "image":
 		if node.Name != "" {
 			fmt.Fprintf(sb, "\n%s- img %s", indent, quote(node.Name))
 		}
 
-	case "StaticText", "text":
-		if node.Name != "" {
-			fmt.Fprintf(sb, "\n%s- text %s", indent, quote(node.Name))
-		}
-		return // no children
-
-	case "InlineTextBox":
-		return // skip — parent StaticText has the text
-
-	case "LineBreak":
-		return // skip — tree indentation already conveys structure
-
-	case "paragraph":
-		sb.WriteString("\n" + indent + "- paragraph")
-		for _, child := range node.Children {
-			renderNode(sb, child, depth+1, elements, focusedHash)
-		}
-		return
-
-	case "list":
-		sb.WriteString("\n" + indent + "- list")
-		for _, child := range node.Children {
-			renderNode(sb, child, depth+1, elements, focusedHash)
-		}
-		return
-
-	case "listitem":
-		sb.WriteString("\n" + indent + "- listitem")
-		for _, child := range node.Children {
-			renderNode(sb, child, depth+1, elements, focusedHash)
-		}
-		return
-
-	case "table":
-		sb.WriteString("\n" + indent + "- table")
-		for _, child := range node.Children {
-			renderNode(sb, child, depth+1, elements, focusedHash)
-		}
-		return
-
-	case "row":
-		sb.WriteString("\n" + indent + "- row")
-		for _, child := range node.Children {
-			renderNode(sb, child, depth+1, elements, focusedHash)
-		}
-		return
-
-	case "cell", "columnheader", "rowheader", "gridcell":
-		name := node.Name
-		if name != "" {
-			fmt.Fprintf(sb, "\n%s- %s %s", indent, node.Role, quote(name))
-		} else {
-			fmt.Fprintf(sb, "\n%s- %s", indent, node.Role)
-		}
-		for _, child := range node.Children {
-			renderNode(sb, child, depth+1, elements, focusedHash)
-		}
-		return
-
 	case "separator":
 		fmt.Fprintf(sb, "\n%s- separator", indent)
 
-	case "navigation", "banner", "contentinfo", "main", "complementary",
-		"region", "article", "section", "form", "group", "generic",
-		"dialog", "alertdialog", "application", "document", "figure",
-		"toolbar", "menu", "menubar", "tablist", "tabpanel",
-		"tree", "treeitem", "grid", "status", "alert", "log",
-		"marquee", "timer", "search", "directory", "feed",
-		"math", "note", "presentation", "blockquote", "caption",
-		"definition", "deletion", "emphasis", "insertion", "strong",
-		"subscript", "superscript", "term", "time", "code":
-		// Structural/landmark roles — show role with optional name, render children
+	// All other roles — render with role name and optional name
+	default:
 		if node.Name != "" {
 			fmt.Fprintf(sb, "\n%s- %s %s", indent, node.Role, quote(node.Name))
-		} else {
+		} else if len(node.Children) > 0 {
 			sb.WriteString("\n" + indent + "- " + node.Role)
 		}
-		for _, child := range node.Children {
-			renderNode(sb, child, depth+1, elements, focusedHash)
-		}
-		return
+	}
 
-	default:
-		// Unknown role — render name if leaf, otherwise recurse
-		if len(node.Children) == 0 {
-			if node.Name != "" {
-				fmt.Fprintf(sb, "\n%s- %s %s", indent, node.Role, quote(node.Name))
-			}
-		} else {
-			if node.Name != "" {
-				fmt.Fprintf(sb, "\n%s- %s %s", indent, node.Role, quote(node.Name))
-			}
-			for _, child := range node.Children {
-				renderNode(sb, child, depth+1, elements, focusedHash)
-			}
-		}
-		return
+	// === Default: always render children (opt-out above via early return) ===
+	for _, child := range node.Children {
+		renderNode(sb, child, depth+1, elements, focusedHash)
 	}
 }
 

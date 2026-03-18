@@ -756,6 +756,28 @@ func (r *RPCReceiver) Describe(args *protocol.DescribeArgs, reply *protocol.Desc
 	return nil
 }
 
+// Eval executes JavaScript in the current tab
+func (r *RPCReceiver) Eval(args *protocol.EvalArgs, reply *protocol.EvalReply) error {
+	ctx := context.Background()
+
+	r.state.mu.RLock()
+	tabID := r.state.activeTabID
+	r.state.mu.RUnlock()
+
+	cdpBackend, ok := r.state.backend.(*cdp.Backend)
+	if !ok {
+		return fmt.Errorf("eval requires CDP backend")
+	}
+
+	result, err := cdpBackend.Eval(ctx, tabID, args.Expression)
+	if err != nil {
+		return err
+	}
+
+	reply.Result = result
+	return nil
+}
+
 // DumpAX dumps the raw accessibility tree JSON for debugging
 func (r *RPCReceiver) DumpAX(args *protocol.DumpAXArgs, reply *protocol.DumpAXReply) error {
 	ctx := context.Background()
