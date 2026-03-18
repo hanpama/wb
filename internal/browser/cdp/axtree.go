@@ -222,7 +222,12 @@ func mergeAdjacentText(children []*AXNode) []*AXNode {
 
 	flush := func() {
 		if len(textParts) > 0 {
-			merged := strings.TrimSpace(strings.Join(textParts, " "))
+			merged := strings.Join(textParts, " ")
+			// Collapse multiple spaces into one
+			for strings.Contains(merged, "  ") {
+				merged = strings.ReplaceAll(merged, "  ", " ")
+			}
+			merged = strings.TrimSpace(merged)
 			if merged != "" {
 				result = append(result, &AXNode{
 					Role: "StaticText",
@@ -235,7 +240,7 @@ func mergeAdjacentText(children []*AXNode) []*AXNode {
 
 	for _, child := range children {
 		if isTextLike(child) && child.Name != "" {
-			textParts = append(textParts, child.Name)
+			textParts = append(textParts, strings.TrimSpace(child.Name))
 		} else if isTextLike(child) {
 			// empty text node — skip silently
 			continue
