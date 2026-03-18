@@ -215,6 +215,9 @@ type DescribeReply struct {
 	URL     string
 	Checked string
 	Found   bool
+
+	// DOM context (pre-formatted HTML view for DOM inspection)
+	DOMContext string
 }
 
 // DumpAXArgs represents the arguments for DumpAX RPC call

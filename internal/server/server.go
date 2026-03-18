@@ -698,31 +698,60 @@ func (r *RPCReceiver) RespondToDialog(args *protocol.RespondToDialogArgs, reply 
 	return nil
 }
 
-// Describe describes an interactive element
+// Describe describes an interactive element and shows DOM context
 func (r *RPCReceiver) Describe(args *protocol.DescribeArgs, reply *protocol.DescribeReply) error {
+	ctx := context.Background()
+
 	r.state.mu.RLock()
 	tabID := r.state.activeTabID
 	snapshot := r.state.lastViewedSnapshots[tabID]
 	r.state.mu.RUnlock()
 
-	if snapshot == nil {
-		return fmt.Errorf("no snapshot available")
+	// Try to find element info from AX snapshot
+	var backendNodeID int
+	if snapshot != nil {
+		if elem, found := snapshot.InteractiveMap[args.Hash]; found {
+			reply.Found = true
+			reply.Hash = args.Hash
+			reply.Role = elem.Role
+			reply.Name = elem.Name
+			reply.Value = elem.Value
+			reply.URL = elem.URL
+			reply.Checked = elem.Checked
+			backendNodeID = elem.BackendDOMNodeID
+		}
 	}
 
-	// Find element by hash
-	elem, found := snapshot.InteractiveMap[args.Hash]
-	if !found {
-		reply.Found = false
-		return nil
+	// If not found in AX snapshot, try the backend's interactiveElements map
+	// (this allows chained describe navigation through DOM)
+	if !reply.Found {
+		cdpBackend, ok := r.state.backend.(*cdp.Backend)
+		if !ok {
+			reply.Found = false
+			return nil
+		}
+		selector, err := cdpBackend.GetSelector(ctx, tabID, args.Hash)
+		if err != nil {
+			reply.Found = false
+			return nil
+		}
+		fmt.Sscanf(selector, "backend:%d", &backendNodeID)
+		reply.Found = true
+		reply.Hash = args.Hash
 	}
 
-	reply.Found = true
-	reply.Hash = args.Hash
-	reply.Role = elem.Role
-	reply.Name = elem.Name
-	reply.Value = elem.Value
-	reply.URL = elem.URL
-	reply.Checked = elem.Checked
+	// Get DOM context
+	if backendNodeID > 0 {
+		cdpBackend, ok := r.state.backend.(*cdp.Backend)
+		if ok {
+			domCtx, err := cdpBackend.GetDOMContext(ctx, tabID, backendNodeID)
+			if err != nil {
+				logging.Warn("Failed to get DOM context", map[string]interface{}{"error": err.Error(), "backendNodeID": backendNodeID})
+			} else {
+				reply.DOMContext = cdp.FormatDOMContext(domCtx)
+			}
+		}
+	}
 
 	return nil
 }

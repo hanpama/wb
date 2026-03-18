@@ -571,7 +571,9 @@ var describeCmd = &cobra.Command{
 
 		fmt.Printf("Element {%s}\n", describeReply.Hash)
 		fmt.Println("────────────────────────────────────────────────────────────────")
-		fmt.Printf("  Role:     %s\n", describeReply.Role)
+		if describeReply.Role != "" {
+			fmt.Printf("  Role:     %s\n", describeReply.Role)
+		}
 		if describeReply.Name != "" {
 			fmt.Printf("  Name:     %s\n", describeReply.Name)
 		}
@@ -584,26 +586,12 @@ var describeCmd = &cobra.Command{
 		if describeReply.Checked != "" {
 			fmt.Printf("  Checked:  %s\n", describeReply.Checked)
 		}
-		fmt.Println("────────────────────────────────────────────────────────────────")
 
-		fmt.Println("\nHow to interact:")
-		switch describeReply.Role {
-		case "link":
-			fmt.Printf("  wb click %s     # Navigate to this link\n", hash)
-		case "button":
-			fmt.Printf("  wb click %s     # Click this button\n", hash)
-		case "textbox", "searchbox":
-			fmt.Printf("  wb click %s     # Focus this input\n", hash)
-			fmt.Printf("  wb type \"text\"  # Type text into focused input\n")
-		case "checkbox", "switch":
-			fmt.Printf("  wb click %s     # Toggle\n", hash)
-		case "radio":
-			fmt.Printf("  wb click %s     # Select this option\n", hash)
-		case "combobox", "listbox":
-			fmt.Printf("  wb click %s     # Open dropdown\n", hash)
-		default:
-			fmt.Printf("  wb click %s     # Interact with this element\n", hash)
+		if describeReply.DOMContext != "" {
+			fmt.Println("────────────────────────────────────────────────────────────────")
+			fmt.Println(describeReply.DOMContext)
 		}
+		fmt.Println("────────────────────────────────────────────────────────────────")
 	},
 }
 

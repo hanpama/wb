@@ -1,6 +1,9 @@
 services:
   wb:
     image: ghcr.io/hanpama/wb:main
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: wb
     environment:
       - WB_PORT=62066
