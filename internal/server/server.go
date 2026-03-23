@@ -778,6 +778,28 @@ func (r *RPCReceiver) Eval(args *protocol.EvalArgs, reply *protocol.EvalReply) e
 	return nil
 }
 
+// Screenshot captures a PNG screenshot of the current tab
+func (r *RPCReceiver) Screenshot(args *protocol.ScreenshotArgs, reply *protocol.ScreenshotReply) error {
+	ctx := context.Background()
+
+	r.state.mu.RLock()
+	tabID := r.state.activeTabID
+	r.state.mu.RUnlock()
+
+	cdpBackend, ok := r.state.backend.(*cdp.Backend)
+	if !ok {
+		return fmt.Errorf("screenshot requires CDP backend")
+	}
+
+	data, err := cdpBackend.CaptureScreenshot(ctx, tabID, args.Full)
+	if err != nil {
+		return err
+	}
+
+	reply.Data = data
+	return nil
+}
+
 // DumpAX dumps the raw accessibility tree JSON for debugging
 func (r *RPCReceiver) DumpAX(args *protocol.DumpAXArgs, reply *protocol.DumpAXReply) error {
 	ctx := context.Background()

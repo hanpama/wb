@@ -703,6 +703,9 @@ func init() {
 	rootCmd.AddCommand(describeCmd)
 	rootCmd.AddCommand(respondCmd)
 	rootCmd.AddCommand(evalCmd)
+
+	screenshotCmd.Flags().Bool("full", false, "Capture full page beyond viewport")
+	rootCmd.AddCommand(screenshotCmd)
 }
 
 var evalCmd = &cobra.Command{
@@ -737,6 +740,42 @@ Examples:
 		}
 
 		fmt.Println(evalReply.Result)
+	},
+}
+
+var screenshotCmd = &cobra.Command{
+	Use:   "screenshot [path]",
+	Short: "Capture a PNG screenshot of the current page",
+	Long: `Capture a screenshot of the current tab and save as PNG.
+
+Examples:
+  wb screenshot page.png             Save viewport screenshot
+  wb screenshot --full page.png      Save full page screenshot`,
+	Args: cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		path := args[0]
+		full, _ := cmd.Flags().GetBool("full")
+
+		client, conn, err := connectToServer()
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
+		defer client.Close()
+
+		ssArgs := protocol.ScreenshotArgs{Full: full}
+		var ssReply protocol.ScreenshotReply
+
+		err = client.Call("BrowserService.Screenshot", &ssArgs, &ssReply)
+		if err != nil {
+			log.Fatal("Screenshot failed:", err)
+		}
+
+		if err := os.WriteFile(path, ssReply.Data, 0644); err != nil {
+			log.Fatal("Failed to write file:", err)
+		}
+
+		fmt.Printf("Screenshot saved: %s (%d bytes)\n", path, len(ssReply.Data))
 	},
 }
 

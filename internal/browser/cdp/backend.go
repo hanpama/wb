@@ -2,6 +2,7 @@ package cdp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -369,6 +370,61 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 	return snapshot, nil
 }
 
+
+// CaptureScreenshot captures a PNG screenshot of the current tab
+func (b *Backend) CaptureScreenshot(ctx context.Context, tabID browser.TabID, fullPage bool) ([]byte, error) {
+	b.mu.RLock()
+	tab, ok := b.tabs[tabID]
+	b.mu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("tab not found: %s", tabID)
+	}
+
+	params := map[string]any{
+		"format": "png",
+	}
+
+	if fullPage {
+		// Get full document size
+		metricsResult, err := tab.Client.SendCommand(ctx, "Page.getLayoutMetrics", nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get layout metrics: %w", err)
+		}
+		contentSize, ok := metricsResult["contentSize"].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid contentSize in layout metrics")
+		}
+		width, _ := contentSize["width"].(float64)
+		height, _ := contentSize["height"].(float64)
+		if width > 0 && height > 0 {
+			params["captureBeyondViewport"] = true
+			params["clip"] = map[string]any{
+				"x":      0,
+				"y":      0,
+				"width":  width,
+				"height": height,
+				"scale":  1,
+			}
+		}
+	}
+
+	result, err := tab.Client.SendCommand(ctx, "Page.captureScreenshot", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to capture screenshot: %w", err)
+	}
+
+	dataStr, ok := result["data"].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid screenshot data")
+	}
+
+	data, err := base64.StdEncoding.DecodeString(dataStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode screenshot: %w", err)
+	}
+
+	return data, nil
+}
 
 // Eval executes a JavaScript expression in the current tab and returns the result as JSON
 func (b *Backend) Eval(ctx context.Context, tabID browser.TabID, expression string) (string, error) {

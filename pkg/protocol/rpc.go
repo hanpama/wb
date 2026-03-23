@@ -230,6 +230,16 @@ type EvalReply struct {
 	Result string
 }
 
+// ScreenshotArgs represents the arguments for Screenshot RPC call
+type ScreenshotArgs struct {
+	Full bool // Capture full page beyond viewport
+}
+
+// ScreenshotReply represents the reply for Screenshot RPC call
+type ScreenshotReply struct {
+	Data []byte // PNG image data
+}
+
 // DumpAXArgs represents the arguments for DumpAX RPC call
 type DumpAXArgs struct{}
 
