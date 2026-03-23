@@ -334,8 +334,13 @@ var enterCmd = &cobra.Command{
 
 var openCmd = &cobra.Command{
 	Use:   "open [url]",
-	Short: "Navigate the current tab to a different URL",
-	Args:  cobra.ExactArgs(1),
+	Short: "Open a URL in the current tab",
+	Long: `Open a URL in the current tab. If no tab exists, creates one.
+
+Examples:
+  wb open https://example.com
+  wb open https://news.naver.com/`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		url := args[0]
 
@@ -627,9 +632,9 @@ var respondCmd = &cobra.Command{
 	Long: `Respond to a pending JavaScript dialog (alert, confirm, or prompt).
 
 Examples:
-  wb respond ok               # Click OK on alert or confirm
-  wb respond cancel           # Click Cancel on confirm or prompt
-  wb respond ok "text"        # Enter text and click OK on prompt`,
+  wb respond ok                Dismiss alert or accept confirm
+  wb respond cancel            Cancel confirm or prompt
+  wb respond ok "text"         Enter text and accept prompt`,
 	Args: cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		action := args[0]
