@@ -489,94 +489,69 @@ func (b *Backend) Click(ctx context.Context, tabID browser.TabID, selector strin
 		"tab.id": tabID,
 	})
 
-	// 3. Get box model to find click coordinates
-	logging.Debug("Click: Calling DOM.getBoxModel", map[string]interface{}{
-		"tab.id": tabID,
-	})
+	// 3. Try coordinate-based click, fall back to JS click
+	clicked := false
+
 	boxCtx, boxCancel := context.WithTimeout(ctx, 1*time.Second)
-	boxResult, err := tab.Client.SendCommand(boxCtx, "DOM.getBoxModel", map[string]any{
+	boxResult, boxErr := tab.Client.SendCommand(boxCtx, "DOM.getBoxModel", map[string]any{
 		"objectId": objectID,
 	})
 	boxCancel()
-	if err != nil {
-		logging.BackendMethodEnd("Click", false, map[string]interface{}{
-			"error": "DOM.getBoxModel failed",
-		})
-		return fmt.Errorf("failed to get box model: %w", err)
+
+	if boxErr == nil {
+		model, ok := boxResult["model"].(map[string]any)
+		if ok {
+			content, ok := model["content"].([]any)
+			if ok && len(content) >= 8 {
+				x1, _ := content[0].(float64)
+				y1, _ := content[1].(float64)
+				x3, _ := content[4].(float64)
+				y3, _ := content[5].(float64)
+				centerX := (x1 + x3) / 2
+				centerY := (y1 + y3) / 2
+
+				pressCtx, pressCancel := context.WithTimeout(ctx, 1*time.Second)
+				_, err = tab.Client.SendCommand(pressCtx, "Input.dispatchMouseEvent", map[string]any{
+					"type":       "mousePressed",
+					"x":          centerX,
+					"y":          centerY,
+					"button":     "left",
+					"clickCount": 1,
+				})
+				pressCancel()
+				if err == nil {
+					releaseCtx, releaseCancel := context.WithTimeout(ctx, 1*time.Second)
+					_, _ = tab.Client.SendCommand(releaseCtx, "Input.dispatchMouseEvent", map[string]any{
+						"type":       "mouseReleased",
+						"x":          centerX,
+						"y":          centerY,
+						"button":     "left",
+						"clickCount": 1,
+					})
+					releaseCancel()
+					clicked = true
+				}
+			}
+		}
 	}
-	logging.Debug("Click: DOM.getBoxModel completed", map[string]interface{}{
-		"tab.id": tabID,
-	})
 
-	model, ok := boxResult["model"].(map[string]any)
-	if !ok {
-		return fmt.Errorf("invalid model in box result")
-	}
-
-	content, ok := model["content"].([]any)
-	if !ok || len(content) < 8 {
-		return fmt.Errorf("invalid content in box model")
-	}
-
-	// Calculate center point from quad [x1,y1, x2,y2, x3,y3, x4,y4]
-	x1, _ := content[0].(float64)
-	y1, _ := content[1].(float64)
-	x3, _ := content[4].(float64)
-	y3, _ := content[5].(float64)
-
-	centerX := (x1 + x3) / 2
-	centerY := (y1 + y3) / 2
-
-	// 4. Dispatch mouse events
-	// Mouse pressed
-	logging.Debug("Click: Calling Input.dispatchMouseEvent (mousePressed)", map[string]interface{}{
-		"tab.id": tabID,
-		"x":      centerX,
-		"y":      centerY,
-	})
-	pressCtx, pressCancel := context.WithTimeout(ctx, 1*time.Second)
-	_, err = tab.Client.SendCommand(pressCtx, "Input.dispatchMouseEvent", map[string]any{
-		"type":       "mousePressed",
-		"x":          centerX,
-		"y":          centerY,
-		"button":     "left",
-		"clickCount": 1,
-	})
-	pressCancel()
-	if err != nil {
-		logging.BackendMethodEnd("Click", false, map[string]interface{}{
-			"error": "Input.dispatchMouseEvent (mousePressed) failed",
-		})
-		return fmt.Errorf("failed to dispatch mousePressed: %w", err)
-	}
-	logging.Debug("Click: Input.dispatchMouseEvent (mousePressed) completed", map[string]interface{}{
-		"tab.id": tabID,
-	})
-
-	// Mouse released
-	logging.Debug("Click: Calling Input.dispatchMouseEvent (mouseReleased)", map[string]interface{}{
-		"tab.id": tabID,
-	})
-	releaseCtx, releaseCancel := context.WithTimeout(ctx, 1*time.Second)
-	_, err = tab.Client.SendCommand(releaseCtx, "Input.dispatchMouseEvent", map[string]any{
-		"type":       "mouseReleased",
-		"x":          centerX,
-		"y":          centerY,
-		"button":     "left",
-		"clickCount": 1,
-	})
-	releaseCancel()
-	if err != nil {
-		// Timeout on mouseReleased is expected when a dialog opens immediately after click
-		// The click was successful, but the page is now blocked by the dialog
-		logging.Warn("Click: Input.dispatchMouseEvent (mouseReleased) timeout - dialog likely opened", map[string]interface{}{
-			"tab.id": tabID,
-			"error":  err.Error(),
-		})
-	} else {
-		logging.Debug("Click: Input.dispatchMouseEvent (mouseReleased) completed", map[string]interface{}{
+	// Fallback: JS click for elements without box model (hidden, zero-size, etc.)
+	if !clicked {
+		logging.Debug("Click: box model unavailable, falling back to JS click", map[string]interface{}{
 			"tab.id": tabID,
 		})
+		clickCtx, clickCancel := context.WithTimeout(ctx, 1*time.Second)
+		_, err = tab.Client.SendCommand(clickCtx, "Runtime.callFunctionOn", map[string]any{
+			"objectId":            objectID,
+			"functionDeclaration": "function() { this.focus(); this.click(); }",
+		})
+		clickCancel()
+		if err != nil {
+			logging.BackendMethodEnd("Click", false, map[string]interface{}{
+				"error": "JS click fallback failed",
+			})
+			return fmt.Errorf("failed to click: %w", err)
+		}
 	}
 
 	logging.BackendMethodEnd("Click", true, map[string]interface{}{
