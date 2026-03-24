@@ -778,6 +778,28 @@ func (r *RPCReceiver) Eval(args *protocol.EvalArgs, reply *protocol.EvalReply) e
 	return nil
 }
 
+// SetViewport sets the viewport size for the current tab
+func (r *RPCReceiver) SetViewport(args *protocol.SetViewportArgs, reply *protocol.SetViewportReply) error {
+	ctx := context.Background()
+
+	r.state.mu.RLock()
+	tabID := r.state.activeTabID
+	r.state.mu.RUnlock()
+
+	cdpBackend, ok := r.state.backend.(*cdp.Backend)
+	if !ok {
+		return fmt.Errorf("set-viewport requires CDP backend")
+	}
+
+	if err := cdpBackend.SetViewport(ctx, tabID, args.Width, args.Height); err != nil {
+		return err
+	}
+
+	reply.Width = args.Width
+	reply.Height = args.Height
+	return nil
+}
+
 // Screenshot captures a PNG screenshot of the current tab
 func (r *RPCReceiver) Screenshot(args *protocol.ScreenshotArgs, reply *protocol.ScreenshotReply) error {
 	ctx := context.Background()

@@ -8,6 +8,7 @@ import (
 	"net/rpc/jsonrpc"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/hanpama/wb/internal/renderer"
@@ -711,6 +712,46 @@ func init() {
 
 	screenshotCmd.Flags().Bool("full", false, "Capture full page beyond viewport")
 	rootCmd.AddCommand(screenshotCmd)
+	rootCmd.AddCommand(setViewportCmd)
+}
+
+var setViewportCmd = &cobra.Command{
+	Use:   "set-viewport [width] [height]",
+	Short: "Set the browser viewport size",
+	Long: `Set the browser viewport size in pixels.
+
+Examples:
+  wb set-viewport 1920 1080        Desktop
+  wb set-viewport 375 812          iPhone X
+  wb set-viewport 768 1024         iPad`,
+	Args: cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		width, err := strconv.Atoi(args[0])
+		if err != nil {
+			log.Fatal("Invalid width:", args[0])
+		}
+		height, err := strconv.Atoi(args[1])
+		if err != nil {
+			log.Fatal("Invalid height:", args[1])
+		}
+
+		client, conn, err := connectToServer()
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer conn.Close()
+		defer client.Close()
+
+		vpArgs := protocol.SetViewportArgs{Width: width, Height: height}
+		var vpReply protocol.SetViewportReply
+
+		err = client.Call("BrowserService.SetViewport", &vpArgs, &vpReply)
+		if err != nil {
+			log.Fatal("SetViewport failed:", err)
+		}
+
+		fmt.Printf("Viewport set to %dx%d\n", vpReply.Width, vpReply.Height)
+	},
 }
 
 var evalCmd = &cobra.Command{

@@ -371,6 +371,27 @@ func (b *Backend) GetSnapshot(ctx context.Context, tabID browser.TabID) (*ir.Pag
 }
 
 
+// SetViewport sets the viewport size for the given tab
+func (b *Backend) SetViewport(ctx context.Context, tabID browser.TabID, width, height int) error {
+	b.mu.RLock()
+	tab, ok := b.tabs[tabID]
+	b.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("tab not found: %s", tabID)
+	}
+
+	_, err := tab.Client.SendCommand(ctx, "Emulation.setDeviceMetricsOverride", map[string]any{
+		"width":             width,
+		"height":            height,
+		"deviceScaleFactor": 1,
+		"mobile":            false,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set viewport: %w", err)
+	}
+	return nil
+}
+
 // CaptureScreenshot captures a PNG screenshot of the current tab
 func (b *Backend) CaptureScreenshot(ctx context.Context, tabID browser.TabID, fullPage bool) ([]byte, error) {
 	b.mu.RLock()

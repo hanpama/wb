@@ -230,6 +230,18 @@ type EvalReply struct {
 	Result string
 }
 
+// SetViewportArgs represents the arguments for SetViewport RPC call
+type SetViewportArgs struct {
+	Width  int
+	Height int
+}
+
+// SetViewportReply represents the reply for SetViewport RPC call
+type SetViewportReply struct {
+	Width  int
+	Height int
+}
+
 // ScreenshotArgs represents the arguments for Screenshot RPC call
 type ScreenshotArgs struct {
 	Full bool // Capture full page beyond viewport
